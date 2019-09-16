@@ -1,37 +1,13 @@
-## Welcome to GitHub Pages
+## Sitting posture notifications
 
-You can use the [editor on GitHub](https://github.com/metaflow/posture/edit/master/README.md) to maintain and preview the content for your website in Markdown files.
+Idea of the project is to build simple yet efficient _thing_ that can help me to keep a "good" posture.
 
-Whenever you commit to this repository, GitHub Pages will run [Jekyll](https://jekyllrb.com/) to rebuild the pages in your site, from the content in your Markdown files.
+### Status of the project
 
-### Markdown
+Using simple 3-axis accelerometers on a different parts of a body and recording the camera for reference I have recorded images of my posture along with accelerometers data.
 
-Markdown is a lightweight and easy-to-use syntax for styling your writing. It includes conventions for
+![1](./img/IMG_20190728_220648.jpg) ![2](./img/IMG_20190831_094154.jpg)
 
-```markdown
-Syntax highlighted code block
+Some of the sensors can clearly distinguish "good" postures from "bad"
 
-# Header 1
-## Header 2
-### Header 3
-
-- Bulleted
-- List
-
-1. Numbered
-2. List
-
-**Bold** and _Italic_ and `Code` text
-
-[Link](url) and ![Image](src)
-```
-
-For more details see [GitHub Flavored Markdown](https://guides.github.com/features/mastering-markdown/).
-
-### Jekyll Themes
-
-Your Pages site will use the layout and styles from the Jekyll theme you have selected in your [repository settings](https://github.com/metaflow/posture/settings). The name of this theme is saved in the Jekyll `_config.yml` configuration file.
-
-### Support or Contact
-
-Having trouble with Pages? Check out our [documentation](https://help.github.com/categories/github-pages-basics/) or [contact support](https://github.com/contact) and we’ll help you sort it out.
+![3](./img/single_axis_labels.png)
