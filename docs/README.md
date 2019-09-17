@@ -2,6 +2,7 @@
 
 Idea of the project is to build simple yet efficient _thing_ that can help me to keep a "good" posture.
 
+* TOC
 {:toc}
 
 ### 2019-09-17
