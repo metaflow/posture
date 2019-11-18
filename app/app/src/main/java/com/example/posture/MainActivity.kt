@@ -9,14 +9,13 @@ import android.bluetooth.le.ScanSettings
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
-import androidx.appcompat.app.AppCompatActivity
 import android.os.Bundle
 import android.os.ParcelUuid
 import android.util.Log
 import android.widget.TextView
+import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
-import java.lang.StringBuilder
 import java.util.*
 import kotlin.collections.HashSet
 import kotlin.math.sqrt
@@ -26,35 +25,6 @@ private val TAG: String = MainActivity::class.java.simpleName
 val serviceUUID = UUID.fromString("6a800001-b5a3-f393-e0a9-e50e24dcca9e")
 val characteristicUUID = UUID.fromString("6a806050-b5a3-f393-e0a9-e50e24dcca9e")
 val enableNotificationDescriptorUUID: UUID = UUID.fromString("00002902-0000-1000-8000-00805f9b34fb")
-
-class XYZ {
-    var x : Double = 0.0
-    var y : Double = 0.0
-    var z : Double = 0.0
-
-    override fun toString(): String {
-        return "%.2f %.2f %.2f".format(x, y, z)
-    }
-
-    fun normalize() {
-        val m = mag
-        x /= m
-        y /= m
-        z /= m
-    }
-
-    val mag: Double
-        get() {
-            return sqrt(x * x + y * y + z * z)
-        }
-}
-
-class SensorData {
-    val Accelaration = XYZ()
-    override fun toString(): String {
-        return "$Accelaration"
-    }
-}
 
 class MainActivity : AppCompatActivity() {
 
