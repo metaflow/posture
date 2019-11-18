@@ -13,10 +13,13 @@ import androidx.appcompat.app.AppCompatActivity
 import android.os.Bundle
 import android.os.ParcelUuid
 import android.util.Log
+import android.widget.TextView
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
+import java.lang.StringBuilder
 import java.util.*
 import kotlin.collections.HashSet
+import kotlin.math.sqrt
 
 private val TAG: String = MainActivity::class.java.simpleName
 
@@ -24,8 +27,38 @@ val serviceUUID = UUID.fromString("6a800001-b5a3-f393-e0a9-e50e24dcca9e")
 val characteristicUUID = UUID.fromString("6a806050-b5a3-f393-e0a9-e50e24dcca9e")
 val enableNotificationDescriptorUUID: UUID = UUID.fromString("00002902-0000-1000-8000-00805f9b34fb")
 
+class XYZ {
+    var x : Double = 0.0
+    var y : Double = 0.0
+    var z : Double = 0.0
+
+    override fun toString(): String {
+        return "%.2f %.2f %.2f".format(x, y, z)
+    }
+
+    fun normalize() {
+        val m = mag
+        x /= m
+        y /= m
+        z /= m
+    }
+
+    val mag: Double
+        get() {
+            return sqrt(x * x + y * y + z * z)
+        }
+}
+
+class SensorData {
+    val Accelaration = XYZ()
+    override fun toString(): String {
+        return "$Accelaration"
+    }
+}
 
 class MainActivity : AppCompatActivity() {
+
+    private val activeDevices = HashSet<String>()
 
     override fun onRequestPermissionsResult(
         requestCode: Int,
@@ -37,7 +70,7 @@ class MainActivity : AppCompatActivity() {
         startScan()
     }
 
-    class GattCallback(val stateConnected: () -> Unit, val stateDisconnected: () -> Unit) :
+    class GattCallback(val stateConnected: () -> Unit, val stateDisconnected: (address: String) -> Unit, val onValue: (address: String, data: SensorData) -> Unit) :
         BluetoothGattCallback() {
         private var characteristic: BluetoothGattCharacteristic? = null
 
@@ -57,7 +90,7 @@ class MainActivity : AppCompatActivity() {
                 }
                 BluetoothProfile.STATE_DISCONNECTED -> {
                     gatt.close()
-                    stateDisconnected()
+                    stateDisconnected(gatt.device.address)
                 }
             }
         }
@@ -103,23 +136,32 @@ class MainActivity : AppCompatActivity() {
             gatt: BluetoothGatt?,
             ch: BluetoothGattCharacteristic?
         ) {
-            Log.i(
-                TAG,
-                "${gatt?.device?.address}: ${ch?.value?.map { b ->
-                    String.format("%02X", b)
-                }}"
-            )
+            val address = gatt?.device?.address
+            Log.i(TAG, "$address: ${ch?.value?.map { b -> String.format("%02X", b) }?.joinToString { x -> x }}")
+            val data = SensorData()
+            val get = { p: Int -> Double
+                when {
+                    ch?.value == null -> 0
+                    p + 1 > ch.value?.size!! -> 0
+                    else -> ch.value?.get(p)!! * 256 + ch.value?.get(p + 1)!!
+                }
+            }
+            data.Accelaration.x = get(0).toDouble()
+            data.Accelaration.y = get(2).toDouble()
+            data.Accelaration.z = get(4).toDouble()
+            data.Accelaration.normalize()
+            if (address != null) onValue(address, data)
         }
     }
 
-    val scan = object : ScanCallback() {
+    private val scan = object : ScanCallback() {
         override fun onScanFailed(errorCode: Int) {
             Log.i(TAG, "onScanFailed $errorCode")
         }
 
         override fun onScanResult(callbackType: Int, result: ScanResult?) {
             if (result == null) return
-//            Log.i(TAG, "onScanResult($callbackType, $result)")
+            Log.v(TAG, "onScanResult($callbackType, $result)")
             if (result.scanRecord?.serviceUuids?.contains(ParcelUuid(serviceUUID)) == true) {
                 Log.i(TAG, "found IMU sensor")
                 connect(result.device)
@@ -131,8 +173,6 @@ class MainActivity : AppCompatActivity() {
         }
 
     }
-
-    val activeDevices = HashSet<String>()
 
     private fun connect(device: BluetoothDevice?) {
         Log.i(TAG, "connecting to $device")
@@ -149,12 +189,31 @@ class MainActivity : AppCompatActivity() {
             if (activeDevices.size >= 4) {
                 bluetoothAdapter?.bluetoothLeScanner?.stopScan(scan)
             }
-        }, {
-            Log.i(TAG, "$address disconnected ${activeDevices.size} active devices")
+            updateSensorDisplay()
+        }, { add: String ->
+            Log.i(TAG, "$add disconnected ${activeDevices.size} active devices")
+            sensorState.remove(add)
             if (activeDevices.size < 4) {
                 startScan()
             }
+        },  { add, value ->
+            Log.v(TAG, "value update $add $value")
+            sensorState[address] = value
+            updateSensorDisplay()
         }))
+    }
+
+    val sensorState = TreeMap<String, SensorData>()
+
+
+    private fun updateSensorDisplay() {
+        this.runOnUiThread {
+            val b = StringBuilder()
+            sensorState.forEach { (t, u) ->
+                b.appendln("${t.substring(0, 2)} $u")
+            }
+            findViewById<TextView>(R.id.rawtext).text = b
+        }
     }
 
 
@@ -164,7 +223,6 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun startScan() {
-        // TODO: check if we are not scanning already
         Log.i(TAG, "startScan")
         if (ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION)
             != PackageManager.PERMISSION_GRANTED
@@ -222,7 +280,5 @@ class MainActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
         startScan()
-
-
     }
 }
