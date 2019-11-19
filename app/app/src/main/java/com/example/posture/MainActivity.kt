@@ -240,7 +240,13 @@ class MainActivity : AppCompatActivity() {
         sensorsViewModel.allSensors.observe(this, androidx.lifecycle.Observer { sensors ->
             val b = StringBuilder()
             sensors.forEach { (t, u) ->
-                b.appendln("${t.substring(0, 2)} $u")
+                b.appendln(
+                    "${t.substring(0, 2)} (%+.1f, %+.1f,%+.1f) (%+.1f, %+.1f)".format(
+                        u.ax,
+                        u.ay,
+                        u.az
+                    )
+                )
             }
             findViewById<TextView>(R.id.rawtext).text = b
         })
