@@ -16,9 +16,10 @@ import android.widget.TextView
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
+import androidx.lifecycle.ViewModelProvider
+import java.time.Instant
 import java.util.*
 import kotlin.collections.HashSet
-import kotlin.math.sqrt
 
 private val TAG: String = MainActivity::class.java.simpleName
 
@@ -29,6 +30,7 @@ val enableNotificationDescriptorUUID: UUID = UUID.fromString("00002902-0000-1000
 class MainActivity : AppCompatActivity() {
 
     private val activeDevices = HashSet<String>()
+    private lateinit var sensorsViewModel: SensorsViewModel
 
     override fun onRequestPermissionsResult(
         requestCode: Int,
@@ -40,7 +42,7 @@ class MainActivity : AppCompatActivity() {
         startScan()
     }
 
-    class GattCallback(val stateConnected: () -> Unit, val stateDisconnected: (address: String) -> Unit, val onValue: (address: String, data: SensorData) -> Unit) :
+    class GattCallback(val stateConnected: () -> Unit, val stateDisconnected: (address: String) -> Unit, val onValue: (address: String, data: SensorMeasurement) -> Unit) :
         BluetoothGattCallback() {
         private var characteristic: BluetoothGattCharacteristic? = null
 
@@ -107,8 +109,11 @@ class MainActivity : AppCompatActivity() {
             ch: BluetoothGattCharacteristic?
         ) {
             val address = gatt?.device?.address
+            if (address == null) {
+                Log.w(TAG, "no address for device ${gatt?.device}")
+                return
+            }
             Log.i(TAG, "$address: ${ch?.value?.map { b -> String.format("%02X", b) }?.joinToString { x -> x }}")
-            val data = SensorData()
             val get = { p: Int -> Double
                 when {
                     ch?.value == null -> 0
@@ -116,11 +121,9 @@ class MainActivity : AppCompatActivity() {
                     else -> ch.value?.get(p)!! * 256 + ch.value?.get(p + 1)!!
                 }
             }
-            data.Accelaration.x = get(0).toDouble()
-            data.Accelaration.y = get(2).toDouble()
-            data.Accelaration.z = get(4).toDouble()
-            data.Accelaration.normalize()
-            if (address != null) onValue(address, data)
+            val data = SensorMeasurement(address, Instant.now().toEpochMilli(),get(0).toDouble(), get(2).toDouble(), get(4).toDouble())
+            data.normalize()
+            onValue(address, data)
         }
     }
 
@@ -153,39 +156,23 @@ class MainActivity : AppCompatActivity() {
             return
         }
         activeDevices.add(address)
-        device.connectGatt(this, false, GattCallback({
-            activeDevices.remove(address)
-            Log.i(TAG, "$address connected ${activeDevices.size} active devices")
+        device.connectGatt(this, false, GattCallback(stateConnected = {
+            activeDevices.add(address)
+            Log.i(TAG, "$address connected, ${activeDevices.size} active devices")
             if (activeDevices.size >= 4) {
                 bluetoothAdapter?.bluetoothLeScanner?.stopScan(scan)
             }
-            updateSensorDisplay()
-        }, { add: String ->
-            Log.i(TAG, "$add disconnected ${activeDevices.size} active devices")
-            sensorState.remove(add)
+        }, stateDisconnected = { add: String ->
+            Log.i(TAG, "$add, disconnected ${activeDevices.size} active devices")
+            activeDevices.remove(add)
             if (activeDevices.size < 4) {
                 startScan()
             }
-        },  { add, value ->
+        }, onValue = { add, value ->
             Log.v(TAG, "value update $add $value")
-            sensorState[address] = value
-            updateSensorDisplay()
+            sensorsViewModel.insert(value)
         }))
     }
-
-    val sensorState = TreeMap<String, SensorData>()
-
-
-    private fun updateSensorDisplay() {
-        this.runOnUiThread {
-            val b = StringBuilder()
-            sensorState.forEach { (t, u) ->
-                b.appendln("${t.substring(0, 2)} $u")
-            }
-            findViewById<TextView>(R.id.rawtext).text = b
-        }
-    }
-
 
     private val bluetoothAdapter: BluetoothAdapter? by lazy(LazyThreadSafetyMode.NONE) {
         val bluetoothManager = getSystemService(Context.BLUETOOTH_SERVICE) as BluetoothManager
@@ -249,6 +236,14 @@ class MainActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
+        sensorsViewModel = ViewModelProvider(this).get(SensorsViewModel::class.java)
+        sensorsViewModel.allSensors.observe(this, androidx.lifecycle.Observer { sensors ->
+            val b = StringBuilder()
+            sensors.forEach { (t, u) ->
+                b.appendln("${t.substring(0, 2)} $u")
+            }
+            findViewById<TextView>(R.id.rawtext).text = b
+        })
         startScan()
     }
 }

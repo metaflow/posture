@@ -28,21 +28,32 @@ class XYZ {
 }
 
 class SensorData {
-    val Accelaration = XYZ()
+    val acc = XYZ()
     override fun toString(): String {
-        return "$Accelaration"
+        return "$acc"
     }
 }
 
+// TODO: merge with SensorData
 @Entity(tableName = "sensor")
-data class SensorEntity(
+data class SensorMeasurement(
     val sensorId: String,
-    val time: Time,
-    val ax: Double,
-    val ay: Double,
-    val az: Double
+    val time: Long,
+    var ax: Double,
+    var ay: Double,
+    var az: Double
 ) {
     @PrimaryKey(autoGenerate = true)
-    private val id = 0
+    var id = 0
 
+    fun normalize() {
+        val a = XYZ()
+        a.x = ax
+        a.y = ay
+        a.z = az
+        a.normalize()
+        ax = a.x
+        ay = a.y
+        az = a.z
+    }
 }

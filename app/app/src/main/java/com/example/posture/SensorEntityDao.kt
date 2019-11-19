@@ -8,8 +8,8 @@ import androidx.room.Query
 @Dao
 interface SensorEntityDao {
     @Query("SELECT * from sensor")
-    fun allEntries(): List<SensorEntity>
+    suspend fun allEntries(): List<SensorMeasurement>
 
     @Insert(onConflict = OnConflictStrategy.ABORT)
-    suspend fun insert(e: SensorEntity)
+    suspend fun insert(e: SensorMeasurement)
 }
