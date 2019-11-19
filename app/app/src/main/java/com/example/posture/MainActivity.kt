@@ -12,6 +12,7 @@ import android.content.pm.PackageManager
 import android.os.Bundle
 import android.os.ParcelUuid
 import android.util.Log
+import android.view.View
 import android.widget.TextView
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
@@ -245,5 +246,13 @@ class MainActivity : AppCompatActivity() {
             findViewById<TextView>(R.id.rawtext).text = b
         })
         startScan()
+    }
+
+    fun recordGood(view: View) {
+        Log.i(TAG, "good is clicked")
+    }
+
+    fun recordBad(view: View) {
+        Log.i(TAG, "bad is clicked")
     }
 }

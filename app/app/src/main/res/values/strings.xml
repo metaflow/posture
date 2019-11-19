@@ -1,3 +1,5 @@
 <resources>
     <string name="app_name">Posture</string>
+    <string name="recordGoodButton">Good</string>
+    <string name="recordBadButton">Bad</string>
 </resources>
