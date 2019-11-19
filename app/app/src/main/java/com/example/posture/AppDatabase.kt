@@ -5,9 +5,14 @@ import androidx.room.Database
 import androidx.room.Room
 import androidx.room.RoomDatabase
 
-@Database(entities = arrayOf(SensorMeasurement::class), version = 1, exportSchema = false)
+@Database(
+    entities = arrayOf(SensorMeasurement::class, PostureEvent::class),
+    version = 2,
+    exportSchema = false
+)
 abstract class AppDatabase : RoomDatabase() {
     abstract fun sensors(): SensorEntityDao
+    abstract fun events(): PostureEventDao
 
     companion object {
         @Volatile
@@ -23,10 +28,12 @@ abstract class AppDatabase : RoomDatabase() {
                     context.applicationContext,
                     AppDatabase::class.java,
                     "posture_database"
-                ).build()
+                ).fallbackToDestructiveMigration().build()
                 INSTANCE = instance
                 return instance
             }
         }
     }
+
+
 }

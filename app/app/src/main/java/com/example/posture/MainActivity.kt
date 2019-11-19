@@ -12,7 +12,6 @@ import android.content.pm.PackageManager
 import android.os.Bundle
 import android.os.ParcelUuid
 import android.util.Log
-import android.view.View
 import android.widget.TextView
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
@@ -171,7 +170,7 @@ class MainActivity : AppCompatActivity() {
             }
         }, onValue = { add, value ->
             Log.v(TAG, "value update $add $value")
-            sensorsViewModel.insert(value)
+            sensorsViewModel.onMeasurement(value)
         }))
     }
 
@@ -248,11 +247,11 @@ class MainActivity : AppCompatActivity() {
         startScan()
     }
 
-    fun recordGood(view: View) {
-        Log.i(TAG, "good is clicked")
+    fun recordGood() {
+        sensorsViewModel.onPostureEvent(PostureEvent(PostureEvent.Type.USER_OBSERVED_HEALTHY.ordinal))
     }
 
-    fun recordBad(view: View) {
-        Log.i(TAG, "bad is clicked")
+    fun recordBad() {
+        sensorsViewModel.onPostureEvent(PostureEvent(PostureEvent.Type.USER_OBSERVED_UNHEALTHY.ordinal))
     }
 }

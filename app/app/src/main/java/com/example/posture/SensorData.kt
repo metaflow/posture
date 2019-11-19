@@ -2,7 +2,6 @@ package com.example.posture
 
 import androidx.room.Entity
 import androidx.room.PrimaryKey
-import java.sql.Time
 import kotlin.math.sqrt
 
 class XYZ {
@@ -27,14 +26,6 @@ class XYZ {
         }
 }
 
-class SensorData {
-    val acc = XYZ()
-    override fun toString(): String {
-        return "$acc"
-    }
-}
-
-// TODO: merge with SensorData
 @Entity(tableName = "sensor")
 data class SensorMeasurement(
     val sensorId: String,
@@ -44,7 +35,9 @@ data class SensorMeasurement(
     var az: Double
 ) {
     @PrimaryKey(autoGenerate = true)
-    var id = 0
+    var id: Long = 0
+
+    var eventID: Long = 0
 
     fun normalize() {
         val a = XYZ()
