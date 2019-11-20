@@ -18,8 +18,8 @@ class SensorsViewModel(application: Application): AndroidViewModel(application) 
     private val repository: SensorDataRepository
 
     val allSensors = MutableLiveData<TreeMap<String, SensorMeasurement>>()
-    val queue: LinkedList<SensorMeasurement> = LinkedList()
-    var queueLock = ReentrantLock()
+    private val queue: LinkedList<SensorMeasurement> = LinkedList()
+    private var queueLock = ReentrantLock()
 
     init {
         val db = AppDatabase.getDatabase(application)
