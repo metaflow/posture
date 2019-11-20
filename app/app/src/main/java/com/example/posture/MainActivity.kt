@@ -1,7 +1,11 @@
 package com.example.posture
 
 import android.Manifest
-import android.bluetooth.*
+import android.app.NotificationChannel
+import android.app.NotificationManager
+import android.bluetooth.BluetoothAdapter
+import android.bluetooth.BluetoothDevice
+import android.bluetooth.BluetoothManager
 import android.bluetooth.le.ScanCallback
 import android.bluetooth.le.ScanFilter
 import android.bluetooth.le.ScanResult
@@ -9,15 +13,17 @@ import android.bluetooth.le.ScanSettings
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.os.Build
 import android.os.Bundle
 import android.os.ParcelUuid
 import android.util.Log
 import android.widget.TextView
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
+import androidx.core.app.NotificationCompat
+import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.ViewModelProvider
-import java.time.Instant
 import java.util.*
 import kotlin.collections.HashSet
 
@@ -29,6 +35,7 @@ val enableNotificationDescriptorUUID: UUID = UUID.fromString("00002902-0000-1000
 
 class MainActivity : AppCompatActivity() {
 
+    private val CHANNEL_ID = "channel_id_posture"
     private val activeDevices = HashSet<String>()
     private lateinit var sensorsViewModel: SensorsViewModel
 
@@ -40,91 +47,6 @@ class MainActivity : AppCompatActivity() {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
         Log.i(TAG, "onRequestPermissionsResult $requestCode, $permissions, $grantResults")
         startScan()
-    }
-
-    class GattCallback(val stateConnected: () -> Unit, val stateDisconnected: (address: String) -> Unit, val onValue: (address: String, data: SensorMeasurement) -> Unit) :
-        BluetoothGattCallback() {
-        private var characteristic: BluetoothGattCharacteristic? = null
-
-        override fun onConnectionStateChange(
-            gatt: BluetoothGatt,
-            status: Int,
-            newState: Int
-        ) {
-            when (newState) {
-                BluetoothProfile.STATE_CONNECTED -> {
-                    Log.i(TAG, "Connected to GATT server.")
-                    Log.i(
-                        TAG, "Attempting to start service discovery: " +
-                                gatt.discoverServices()
-                    )
-                    stateConnected()
-                }
-                BluetoothProfile.STATE_DISCONNECTED -> {
-                    gatt.close()
-                    stateDisconnected(gatt.device.address)
-                }
-            }
-        }
-
-        // New services discovered
-        override fun onServicesDiscovered(gatt: BluetoothGatt, status: Int) {
-            when (status) {
-                BluetoothGatt.GATT_SUCCESS -> {
-                    Log.i(TAG, "onServicesDiscovered SUCCESS")
-                    gatt.services.forEach { gattService ->
-                        Log.i(TAG, "service ${gattService.uuid}")
-                        gattService.characteristics.forEach { ch ->
-                            Log.i(TAG, "characteristic: ${ch.uuid}")
-                            if (ch.uuid == characteristicUUID) {
-                                ch.descriptors.forEach { d ->
-                                    Log.i(TAG, "descriptor $d ${d.uuid} ${d.value}")
-                                }
-                                characteristic = ch
-                                Log.i(
-                                    TAG,
-                                    "found IMU characteristic. Setting notification: " + gatt.setCharacteristicNotification(
-                                        ch,
-                                        true
-                                    )
-                                )
-                                val descriptor =
-                                    ch.getDescriptor(enableNotificationDescriptorUUID).apply {
-                                        value = BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE
-                                    }
-                                gatt.writeDescriptor(descriptor)
-                                ch.descriptors.forEach { d ->
-                                    Log.i(TAG, "descriptor $d ${d.uuid} ${d.value}")
-                                }
-                            }
-                        }
-                    }
-                }
-                else -> Log.w(TAG, "onServicesDiscovered received: $status")
-            }
-        }
-
-        override fun onCharacteristicChanged(
-            gatt: BluetoothGatt?,
-            ch: BluetoothGattCharacteristic?
-        ) {
-            val address = gatt?.device?.address
-            if (address == null) {
-                Log.w(TAG, "no address for device ${gatt?.device}")
-                return
-            }
-            Log.i(TAG, "$address: ${ch?.value?.map { b -> String.format("%02X", b) }?.joinToString { x -> x }}")
-            val get = { p: Int -> Double
-                when {
-                    ch?.value == null -> 0
-                    p + 1 > ch.value?.size!! -> 0
-                    else -> ch.value?.get(p)!! * 256 + ch.value?.get(p + 1)!!
-                }
-            }
-            val data = SensorMeasurement(address, Instant.now().toEpochMilli(),get(0).toDouble(), get(2).toDouble(), get(4).toDouble())
-            data.normalize()
-            onValue(address, data)
-        }
     }
 
     private val scan = object : ScanCallback() {
@@ -144,8 +66,9 @@ class MainActivity : AppCompatActivity() {
         override fun onBatchScanResults(results: MutableList<ScanResult>?) {
             Log.i(TAG, "onBatchScanResults($results)")
         }
-
     }
+
+    var flipped = false
 
     private fun connect(device: BluetoothDevice?) {
         Log.i(TAG, "connecting to $device")
@@ -156,24 +79,68 @@ class MainActivity : AppCompatActivity() {
             return
         }
         activeDevices.add(address)
-        device.connectGatt(this, false, GattCallback(stateConnected = {
-            activeDevices.add(address)
-            Log.i(TAG, "$address connected, ${activeDevices.size} active devices")
-            if (activeDevices.size >= 4) {
-                bluetoothAdapter?.bluetoothLeScanner?.stopScan(scan)
-            }
-        }, stateDisconnected = { add: String ->
-            Log.i(TAG, "$add, disconnected ${activeDevices.size} active devices")
-            activeDevices.remove(add)
-            if (activeDevices.size < 4) {
-                startScan()
-            }
-        }, onValue = { add, value ->
-            Log.v(TAG, "value update $add $value")
-            sensorsViewModel.onMeasurement(value)
-        }))
+        device.connectGatt(
+            applicationContext, false,
+            GattCallback(stateConnected = {
+                activeDevices.add(address)
+                Log.i(TAG, "$address connected, ${activeDevices.size} active devices")
+                if (activeDevices.size >= 4) {
+                    bluetoothAdapter?.bluetoothLeScanner?.stopScan(scan)
+                }
+            }, stateDisconnected = { add: String ->
+                Log.i(TAG, "$add, disconnected ${activeDevices.size} active devices")
+                activeDevices.remove(add)
+                if (activeDevices.size < 4) {
+                    startScan()
+                }
+            }, onValue = { add, value ->
+                Log.v(TAG, "value update $add $value")
+                if (value.az < 0 != flipped) {
+                    flipped = value.az < 0
+                    Log.i(TAG, "flipped $flipped")
+                    if (flipped) {
+                        val builder = NotificationCompat.Builder(this, CHANNEL_ID)
+                            .setSmallIcon(R.drawable.ic_notification)
+                            .setContentTitle("title")
+                            .setContentText("text\ncontent")
+                            .setPriority(NotificationCompat.PRIORITY_DEFAULT)
+                            .setTimeoutAfter(5000)
+                        val notification = builder.build()
+                        with(NotificationManagerCompat.from(this)) {
+                            val notificationManager: NotificationManager =
+                                getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+                            notificationManager.notify(0, notification)
+                        }
+                    } else {
+                        with(NotificationManagerCompat.from(this)) {
+                            val notificationManager: NotificationManager =
+                                getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+                            notificationManager.cancel(0)
+                        }
+                    }
+                }
+                sensorsViewModel.onMeasurement(value)
+            })
+        )
     }
 
+
+    private fun createNotificationChannel() {
+        // Create the NotificationChannel, but only on API 26+ because
+        // the NotificationChannel class is new and not in the support library
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            val name = getString(R.string.channel_name)
+            val descriptionText = getString(R.string.channel_description)
+            val importance = NotificationManager.IMPORTANCE_DEFAULT
+            val channel = NotificationChannel(CHANNEL_ID, name, importance).apply {
+                description = descriptionText
+            }
+            // Register the channel with the systeGm
+            val notificationManager: NotificationManager =
+                getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+            notificationManager.createNotificationChannel(channel)
+        }
+    }
     private val bluetoothAdapter: BluetoothAdapter? by lazy(LazyThreadSafetyMode.NONE) {
         val bluetoothManager = getSystemService(Context.BLUETOOTH_SERVICE) as BluetoothManager
         bluetoothManager.adapter
@@ -235,13 +202,14 @@ class MainActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        createNotificationChannel()
         setContentView(R.layout.activity_main)
         sensorsViewModel = ViewModelProvider(this).get(SensorsViewModel::class.java)
         sensorsViewModel.allSensors.observe(this, androidx.lifecycle.Observer { sensors ->
             val b = StringBuilder()
             sensors.forEach { (t, u) ->
                 b.appendln(
-                    "${t.substring(0, 2)} (%+.1f, %+.1f,%+.1f) (%+.1f, %+.1f)".format(
+                    "${t.substring(0, 2)} (%+.1f, %+.1f,%+.1f)".format(
                         u.ax,
                         u.ay,
                         u.az
