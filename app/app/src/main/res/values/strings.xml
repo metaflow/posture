@@ -3,5 +3,5 @@
     <string name="recordGoodButton">Good</string>
     <string name="recordBadButton">Bad</string>
     <string name="channel_name">channel name</string>
-    <string name="channel_description">notifcations channel</string>
+    <string name="channel_description">posture background</string>
 </resources>

@@ -14,10 +14,11 @@ import kotlin.concurrent.withLock
 
 private val TAG: String = SensorsViewModel::class.java.simpleName
 
-class SensorsViewModel(application: Application): AndroidViewModel(application) {
+class SensorsViewModel(application: Application) : AndroidViewModel(application), SensorsObserver {
     private val repository: SensorDataRepository
 
     val allSensors = MutableLiveData<TreeMap<String, SensorMeasurement>>()
+    val scanStatus = MutableLiveData<Pair<Boolean, Boolean>>()
     private val queue: LinkedList<SensorMeasurement> = LinkedList()
     private var queueLock = ReentrantLock()
 
@@ -26,14 +27,25 @@ class SensorsViewModel(application: Application): AndroidViewModel(application) 
         repository = SensorDataRepository(db.sensors(), db.events())
     }
 
-    fun onMeasurement(e: SensorMeasurement) = viewModelScope.launch {
+    override fun onMeasurement(measurement: SensorMeasurement) {
         queueLock.withLock {
-            queue.addLast(e)
+            queue.addLast(measurement)
             removeOld()
         }
         var m = allSensors.value
         if (m == null) m = TreeMap()
-        m[e.sensorId] = e
+        m[measurement.sensorId] = measurement
+        allSensors.postValue(m)
+    }
+
+    override fun onScanStatus(on: Boolean, aggressive: Boolean) {
+        scanStatus.postValue(Pair(on, aggressive))
+    }
+
+    override fun onDisconnected(address: String) {
+        var m = allSensors.value
+        if (m == null) m = TreeMap()
+        m.remove(address)
         allSensors.postValue(m)
     }
 

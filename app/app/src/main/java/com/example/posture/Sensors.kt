@@ -8,6 +8,7 @@ import android.bluetooth.le.ScanFilter
 import android.bluetooth.le.ScanResult
 import android.bluetooth.le.ScanSettings
 import android.content.Context
+import android.os.Handler
 import android.os.ParcelUuid
 import android.util.Log
 import java.lang.ref.WeakReference
@@ -17,11 +18,15 @@ private val TAG: String = Sensors::class.java.simpleName
 
 interface SensorsObserver {
     fun onMeasurement(measurement: SensorMeasurement)
+    fun onScanStatus(on: Boolean, aggressive: Boolean)
+    fun onDisconnected(address: String)
 }
 
 class Sensors private constructor() {
     val observers = LinkedList<WeakReference<SensorsObserver>>()
     private val activeDevices = HashSet<String>()
+    private var scanning = false
+    private var aggressiveScan = false
 
     var context: Context? = null
     private lateinit var bluetoothAdapter: BluetoothAdapter
@@ -47,6 +52,7 @@ class Sensors private constructor() {
 
     fun addObserver(o: SensorsObserver) {
         observers.push(WeakReference(o))
+        o.onScanStatus(scanning, aggressiveScan)
     }
 
     companion object {
@@ -70,17 +76,29 @@ class Sensors private constructor() {
         }
     }
 
-    fun startScan() {
+    fun startScan(aggressive: Boolean) {
         Log.i(TAG, "startScan")
+        scanning = false
         bluetoothAdapter.takeIf { it.isEnabled }?.apply {
             val s = bluetoothAdapter.bluetoothLeScanner
-            Log.i(TAG, "BLE is enabled, starting scan $s")
+            s.stopScan(scan)
+            Log.i(TAG, "BLE is enabled, starting scan $s aggressive=$aggressive")
             val scanSettings = ScanSettings.Builder()
-            scanSettings.setScanMode(ScanSettings.SCAN_MODE_LOW_POWER)
+            scanSettings.setScanMode(if (aggressive) ScanSettings.SCAN_MODE_LOW_LATENCY else ScanSettings.SCAN_MODE_LOW_POWER)
             scanSettings.setMatchMode(ScanSettings.MATCH_MODE_STICKY)
             scanSettings.setReportDelay(0)
             s?.startScan(Vector<ScanFilter>(0), scanSettings.build(), scan)
+            scanning = true
+            aggressiveScan = aggressive
+            if (aggressive) {
+                Handler().postDelayed({ startScan(false) }, 10_000)
+            }
         }
+        notifyScanStatus()
+    }
+
+    private fun notifyScanStatus() {
+        observers.forEach { o -> o.get()?.onScanStatus(scanning, aggressiveScan) }
     }
 
     private fun connect(device: BluetoothDevice?) {
@@ -98,17 +116,24 @@ class Sensors private constructor() {
                 activeDevices.add(address)
                 Log.i(TAG, "$address connected, ${activeDevices.size} active devices")
                 if (activeDevices.size >= 4) {
-                    bluetoothAdapter.bluetoothLeScanner?.stopScan(scan)
+                    stopScan()
                 }
             }, stateDisconnected = { add: String ->
                 Log.i(TAG, "$add, disconnected ${activeDevices.size} active devices")
                 activeDevices.remove(add)
                 if (activeDevices.size < 4) {
-                    startScan()
+                    startScan(false)
                 }
+                observers.forEach { o -> o.get()?.onDisconnected(add) }
             }, onValue = { add, value ->
                 observers.forEach { o -> o.get()?.onMeasurement(value) }
             })
         )
+    }
+
+    fun stopScan() {
+        bluetoothAdapter.bluetoothLeScanner?.stopScan(scan)
+        scanning = false
+        notifyScanStatus()
     }
 }

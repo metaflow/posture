@@ -10,6 +10,6 @@ data class PostureEvent(var type: Int) {
     var id: Long = 0
 
     enum class Type {
-        USER_OBSERVED_HEALTHY, USER_OBSERVED_UNHEALTHY
+        USER_OBSERVED_HEALTHY, USER_OBSERVED_UNHEALTHY, USER_OBSERVED_NOT_SITTING;
     }
 }

@@ -9,6 +9,8 @@ import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Bundle
 import android.util.Log
+import android.view.View
+import android.widget.Button
 import android.widget.TextView
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
@@ -22,7 +24,7 @@ val serviceUUID = UUID.fromString("6a800001-b5a3-f393-e0a9-e50e24dcca9e")!!
 val characteristicUUID = UUID.fromString("6a806050-b5a3-f393-e0a9-e50e24dcca9e")!!
 val enableNotificationDescriptorUUID = UUID.fromString("00002902-0000-1000-8000-00805f9b34fb")!!
 
-class MainActivity : AppCompatActivity(), SensorsObserver {
+class MainActivity : AppCompatActivity() {
 
     private val ENABLE_BLUETOOTH_REQUEST = 0
     private lateinit var sensorsViewModel: SensorsViewModel
@@ -59,8 +61,13 @@ class MainActivity : AppCompatActivity(), SensorsObserver {
             }
             findViewById<TextView>(R.id.rawtext).text = b
         })
+        sensorsViewModel.scanStatus.observe(this, androidx.lifecycle.Observer { status ->
+            findViewById<TextView>(R.id.scanstatus).text =
+                "scanning ${status.first} aggressive ${status.second}"
+            findViewById<Button>(R.id.scan).text = if (status.first) "STOP SCANNING" else "SCAN"
+        })
         startPostureService()
-        Sensors.getInstance(this).addObserver(this)
+        Sensors.getInstance(this).addObserver(sensorsViewModel)
     }
 
     private fun startPostureService() {
@@ -110,12 +117,38 @@ class MainActivity : AppCompatActivity(), SensorsObserver {
         startForegroundService(Intent(applicationContext, PostureService::class.java))
     }
 
-    fun recordGood() {
+    @Suppress("UNUSED_PARAMETER")
+    fun recordGood(view: View) {
         sensorsViewModel.onPostureEvent(PostureEvent(PostureEvent.Type.USER_OBSERVED_HEALTHY.ordinal))
     }
 
-    fun recordBad() {
+    @Suppress("UNUSED_PARAMETER")
+    fun recordBad(view: View) {
         sensorsViewModel.onPostureEvent(PostureEvent(PostureEvent.Type.USER_OBSERVED_UNHEALTHY.ordinal))
+    }
+
+    @Suppress("UNUSED_PARAMETER")
+    fun recordNotSitting(view: View) {
+        sensorsViewModel.onPostureEvent(PostureEvent(PostureEvent.Type.USER_OBSERVED_NOT_SITTING.ordinal))
+    }
+
+    @Suppress("UNUSED_PARAMETER")
+    fun forceScan(view: View) {
+        if (sensorsViewModel.scanStatus.value?.first == false) {
+            Sensors.getInstance(this).startScan(true)
+        } else {
+            Sensors.getInstance(this).stopScan()
+        }
+    }
+
+    var observeNotifications = false
+    fun toggleObserveNotifications(view: View) {
+        val intent = Intent(applicationContext, PostureService::class.java)
+        observeNotifications = !observeNotifications
+        intent.putExtra("ObserverNotifications", observeNotifications)
+        startService(intent)
+        (view as Button).text =
+            if (observeNotifications) "Stop observations" else "Start observations"
     }
 
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
@@ -126,10 +159,5 @@ class MainActivity : AppCompatActivity(), SensorsObserver {
             }
         }
         super.onActivityResult(requestCode, resultCode, data)
-    }
-
-    override fun onMeasurement(measurement: SensorMeasurement) {
-        // TODO: make sensorview implement this interface instead
-        sensorsViewModel.onMeasurement(measurement)
     }
 }
