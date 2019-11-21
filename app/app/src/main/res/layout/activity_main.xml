@@ -14,7 +14,7 @@
         android:layout_marginTop="16dp"
         android:text="sensors"
         app:layout_constraintLeft_toLeftOf="parent"
-        app:layout_constraintTop_toBottomOf="@+id/scanstatus" />
+        app:layout_constraintTop_toBottomOf="@+id/notificationStatusText" />
 
     <TextView
         android:id="@+id/scanstatus"
@@ -24,7 +24,17 @@
         android:layout_marginTop="16dp"
         android:text="scan status"
         app:layout_constraintLeft_toLeftOf="parent"
-        app:layout_constraintTop_toBottomOf="@+id/randomMeasurement" />
+        app:layout_constraintTop_toBottomOf="@+id/toggleObserveButton" />
+
+    <TextView
+        android:id="@+id/notificationStatusText"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginLeft="32dp"
+        android:layout_marginTop="16dp"
+        android:text="observe status"
+        app:layout_constraintLeft_toLeftOf="parent"
+        app:layout_constraintTop_toBottomOf="@+id/scanstatus" />
 
     <Button
         android:id="@+id/recordGood"
@@ -86,7 +96,7 @@
         app:layout_constraintTop_toTopOf="parent" />
 
     <Button
-        android:id="@+id/randomMeasurement"
+        android:id="@+id/toggleObserveButton"
         android:layout_width="0dp"
         android:layout_height="52dp"
         android:layout_marginStart="24dp"

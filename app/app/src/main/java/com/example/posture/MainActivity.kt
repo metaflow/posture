@@ -16,6 +16,7 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.ViewModelProvider
+import java.time.Instant
 import java.util.*
 
 private val TAG: String = MainActivity::class.java.simpleName
@@ -24,7 +25,7 @@ val serviceUUID = UUID.fromString("6a800001-b5a3-f393-e0a9-e50e24dcca9e")!!
 val characteristicUUID = UUID.fromString("6a806050-b5a3-f393-e0a9-e50e24dcca9e")!!
 val enableNotificationDescriptorUUID = UUID.fromString("00002902-0000-1000-8000-00805f9b34fb")!!
 
-class MainActivity : AppCompatActivity() {
+class MainActivity : AppCompatActivity(), PostureServiceObserver {
 
     private val ENABLE_BLUETOOTH_REQUEST = 0
     private lateinit var sensorsViewModel: SensorsViewModel
@@ -147,8 +148,7 @@ class MainActivity : AppCompatActivity() {
         observeNotifications = !observeNotifications
         intent.putExtra("ObserverNotifications", observeNotifications)
         startService(intent)
-        (view as Button).text =
-            if (observeNotifications) "Stop observations" else "Start observations"
+        PostureService.getInstance()?.addObserver(this)
     }
 
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
@@ -159,5 +159,13 @@ class MainActivity : AppCompatActivity() {
             }
         }
         super.onActivityResult(requestCode, resultCode, data)
+    }
+
+    override fun onNotificationScheduled(nextNotification: Instant?) {
+        this.observeNotifications = nextNotification != null
+        findViewById<Button>(R.id.toggleObserveButton).text =
+            if (observeNotifications) "Stop observations" else "Start observations"
+        findViewById<TextView>(R.id.notificationStatusText).text =
+            "next nofication $nextNotification"
     }
 }

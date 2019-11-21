@@ -12,18 +12,44 @@ import android.os.IBinder
 import android.util.Log
 import androidx.core.app.NotificationCompat
 import androidx.lifecycle.ViewModelProvider
+import java.lang.ref.WeakReference
+import java.time.Instant
 import kotlin.random.Random
 
 private val TAG: String = PostureService::class.java.simpleName
 
+interface PostureServiceObserver {
+    fun onNotificationScheduled(nextNotification: Instant?)
+}
 
 class PostureService : Service(), SensorsObserver {
 
+    private val observeNotificationID = 2
     private val backgroundChannelID = "channel_id_posture_bg"
     private val messagesChannelID = "channel_id_posture_fg"
     var flipped = false
     var started = false
     var observeNotifications = false
+    var observers = ArrayList<WeakReference<PostureServiceObserver>>()
+    var nextNotification: Instant? = null
+        set(value) {
+            field = value
+            observers.forEach { o -> o.get()?.onNotificationScheduled(value) }
+        }
+
+    companion object {
+        @Volatile
+        private var INSTANCE: PostureService? = null
+
+        fun getInstance(): PostureService? {
+            return INSTANCE
+        }
+    }
+
+    fun addObserver(o: PostureServiceObserver) {
+        observers.add(WeakReference(o))
+        o.onNotificationScheduled(nextNotification)
+    }
 
     override fun onBind(intent: Intent): IBinder? {
         return null
@@ -33,6 +59,7 @@ class PostureService : Service(), SensorsObserver {
         super.onCreate()
         ViewModelProvider.AndroidViewModelFactory.getInstance(application)
             .create(SensorsViewModel::class.java)
+        INSTANCE = this
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -41,8 +68,7 @@ class PostureService : Service(), SensorsObserver {
         if (intent?.hasExtra("ObserverNotifications") == true) {
             observeNotifications = intent.getBooleanExtra("ObserverNotifications", false)
             Log.i(TAG, "observe notifications = $observeNotifications")
-
-            sheduleObserveNotification()
+            scheduleObserveNotification()
         }
         if (started) return START_STICKY
         started = true
@@ -71,6 +97,7 @@ class PostureService : Service(), SensorsObserver {
     }
 
     private fun showObserveNotification() {
+        nextNotification = null
         if (!observeNotifications) return
         val notificationIntent = Intent(this, MainActivity::class.java)
 
@@ -83,18 +110,26 @@ class PostureService : Service(), SensorsObserver {
             .setContentTitle("observe")
             .setPriority(NotificationCompat.PRIORITY_DEFAULT)
             .setContentIntent(pendingIntent)
-            .setTimeoutAfter(5000)
+            .setTimeoutAfter(60_000)
         val notification = builder.build()
         val notificationManager: NotificationManager =
             getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-        notificationManager.notify(3, notification)
-        sheduleObserveNotification()
+        notificationManager.notify(observeNotificationID, notification)
+        scheduleObserveNotification()
     }
 
-    private fun sheduleObserveNotification() {
-        if (!observeNotifications) return
+    private fun hideObserveNotification() {
+        val notificationManager: NotificationManager =
+            getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+        notificationManager.cancel(observeNotificationID)
+    }
+
+    private fun scheduleObserveNotification() {
+        if (!observeNotifications || nextNotification != null) return
         val delay = getNotificationDelay()
+
         Log.i(TAG, "next notification in $delay ms")
+        nextNotification = Instant.now().plusMillis(delay)
         Handler().postDelayed({ showObserveNotification() }, delay)
     }
 
