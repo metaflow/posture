@@ -1,0 +1,6 @@
+{
+    "terminal.integrated.env.osx": {
+        "PATH": "/Users/goncharov/.platformio/penv/bin:/Users/goncharov/.platformio/penv:/Users/goncharov/.opam/default/bin:/usr/local/git/current/bin:/usr/local/bin:/usr/bin:/bin:/usr/local/sbin:/usr/sbin:/sbin:/Users/goncharov/bin",
+        "PLATFORMIO_CALLER": "vscode"
+    }
+}
