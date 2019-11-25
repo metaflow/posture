@@ -22,14 +22,13 @@ interface PostureServiceObserver {
     fun onNotificationScheduled(nextNotification: Instant?)
 }
 
-class PostureService : Service(), SensorsObserver {
+class PostureService : Service(), SensorsObserver, MediatorObserver {
 
     private val observeNotificationID = 2
     private val backgroundChannelID = "channel_id_posture_bg"
     private val messagesChannelID = "channel_id_posture_fg"
     var flipped = false
     var started = false
-    var observeNotifications = false
     var observers = ArrayList<WeakReference<PostureServiceObserver>>()
     var nextNotification: Instant? = null
         set(value) {
@@ -65,11 +64,6 @@ class PostureService : Service(), SensorsObserver {
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         super.onStartCommand(intent, flags, startId)
         Log.i(TAG, "onStartCommand $started $startId $flags")
-        if (intent?.hasExtra("ObserverNotifications") == true) {
-            observeNotifications = intent.getBooleanExtra("ObserverNotifications", false)
-            Log.i(TAG, "observe notifications = $observeNotifications")
-            scheduleObserveNotification()
-        }
         if (started) return START_STICKY
         started = true
         val notificationIntent = Intent(this, MainActivity::class.java)
@@ -91,14 +85,14 @@ class PostureService : Service(), SensorsObserver {
             .build()
         startForeground(1, notification)
         Sensors.getInstance(this).context = this
-        Sensors.getInstance(this).startScan(false)
         Sensors.getInstance(this).addObserver(this)
+        Mediator.getInstance().addObserver(this)
         return START_STICKY
     }
 
     private fun showObserveNotification() {
         nextNotification = null
-        if (!observeNotifications) return
+        if (!Mediator.getInstance().observeNotifications) return
         val notificationIntent = Intent(this, MainActivity::class.java)
 
         val pendingIntent = PendingIntent.getActivity(
@@ -125,9 +119,11 @@ class PostureService : Service(), SensorsObserver {
     }
 
     private fun scheduleObserveNotification() {
-        if (!observeNotifications || nextNotification != null) return
+        if (!Mediator.getInstance().observeNotifications) {
+            nextNotification = null
+            return
+        }
         val delay = getNotificationDelay()
-
         Log.i(TAG, "next notification in $delay ms")
         nextNotification = Instant.now().plusMillis(delay)
         Handler().postDelayed({ showObserveNotification() }, delay)
@@ -191,9 +187,19 @@ class PostureService : Service(), SensorsObserver {
         }
     }
 
-    override fun onScanStatus(on: Boolean, aggressive: Boolean) {
+    override fun onUserToggleApp(on: Boolean) {
+        super.onUserToggleApp(on)
+        if (on) {
+            Sensors.getInstance(this).startScan(true)
+        } else {
+            Sensors.getInstance(this).disconnect()
+        }
     }
 
-    override fun onDisconnected(address: String) {
+    override fun onUserToggleNotifications(value: Boolean) {
+        super.onUserToggleNotifications(value)
+        if (value) {
+            scheduleObserveNotification()
+        }
     }
 }

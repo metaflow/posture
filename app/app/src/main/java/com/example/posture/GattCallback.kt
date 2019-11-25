@@ -13,12 +13,14 @@ class GattCallback(
 ) :
     BluetoothGattCallback() {
     private var characteristic: BluetoothGattCharacteristic? = null
+    private var bluetoothGatt: BluetoothGatt? = null
 
     override fun onConnectionStateChange(
         gatt: BluetoothGatt,
         status: Int,
         newState: Int
     ) {
+        bluetoothGatt = gatt
         when (newState) {
             BluetoothProfile.STATE_CONNECTED -> {
                 Log.i(
@@ -128,5 +130,14 @@ class GattCallback(
         )
         data.normalize()
         onValue(address, data)
+    }
+
+    fun disconnect() {
+        val descriptor =
+            characteristic?.getDescriptor(enableNotificationDescriptorUUID).apply {
+                this?.value ?: BluetoothGattDescriptor.DISABLE_NOTIFICATION_VALUE
+            }
+        bluetoothGatt?.writeDescriptor(descriptor)
+        bluetoothGatt?.disconnect()
     }
 }

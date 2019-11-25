@@ -25,7 +25,7 @@ val serviceUUID = UUID.fromString("6a800001-b5a3-f393-e0a9-e50e24dcca9e")!!
 val characteristicUUID = UUID.fromString("6a806050-b5a3-f393-e0a9-e50e24dcca9e")!!
 val enableNotificationDescriptorUUID = UUID.fromString("00002902-0000-1000-8000-00805f9b34fb")!!
 
-class MainActivity : AppCompatActivity(), PostureServiceObserver {
+class MainActivity : AppCompatActivity(), PostureServiceObserver, MediatorObserver {
 
     private val ENABLE_BLUETOOTH_REQUEST = 0
     private lateinit var sensorsViewModel: SensorsViewModel
@@ -67,6 +67,7 @@ class MainActivity : AppCompatActivity(), PostureServiceObserver {
                 "scanning ${status.first} aggressive ${status.second}"
             findViewById<Button>(R.id.scan).text = if (status.first) "STOP SCANNING" else "SCAN"
         })
+        Mediator.getInstance().addObserver(this)
         startPostureService()
         Sensors.getInstance(this).addObserver(sensorsViewModel)
     }
@@ -142,13 +143,12 @@ class MainActivity : AppCompatActivity(), PostureServiceObserver {
         }
     }
 
-    var observeNotifications = false
+    fun toggleApp(view: View) {
+        Mediator.getInstance().appEnabled = !Mediator.getInstance().appEnabled
+    }
+
     fun toggleObserveNotifications(view: View) {
-        val intent = Intent(applicationContext, PostureService::class.java)
-        observeNotifications = !observeNotifications
-        intent.putExtra("ObserverNotifications", observeNotifications)
-        startService(intent)
-        PostureService.getInstance()?.addObserver(this)
+        Mediator.getInstance().observeNotifications = !Mediator.getInstance().observeNotifications
     }
 
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
@@ -162,10 +162,17 @@ class MainActivity : AppCompatActivity(), PostureServiceObserver {
     }
 
     override fun onNotificationScheduled(nextNotification: Instant?) {
-        this.observeNotifications = nextNotification != null
-        findViewById<Button>(R.id.toggleObserveButton).text =
-            if (observeNotifications) "Stop observations" else "Start observations"
         findViewById<TextView>(R.id.notificationStatusText).text =
             "next nofication $nextNotification"
+    }
+
+    override fun onUserToggleApp(on: Boolean) {
+        findViewById<Button>(R.id.onOffButton).text = if (on) "Turn off" else "Turn on"
+    }
+
+    override fun onUserToggleNotifications(value: Boolean) {
+        super.onUserToggleNotifications(value)
+        findViewById<Button>(R.id.toggleObserveButton).text =
+            if (value) "Stop notifications" else "Start notifications"
     }
 }

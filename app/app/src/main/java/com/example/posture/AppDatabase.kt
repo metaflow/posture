@@ -10,7 +10,7 @@ import androidx.room.RoomDatabase
     version = 2,
     exportSchema = false
 )
-abstract class AppDatabase : RoomDatabase() {
+abstract class AppDatabase protected constructor() : RoomDatabase() {
     abstract fun sensors(): SensorEntityDao
     abstract fun events(): PostureEventDao
 

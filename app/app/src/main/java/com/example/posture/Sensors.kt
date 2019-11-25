@@ -17,14 +17,14 @@ import java.util.*
 private val TAG: String = Sensors::class.java.simpleName
 
 interface SensorsObserver {
-    fun onMeasurement(measurement: SensorMeasurement)
-    fun onScanStatus(on: Boolean, aggressive: Boolean)
-    fun onDisconnected(address: String)
+    fun onMeasurement(measurement: SensorMeasurement) {}
+    fun onScanStatus(on: Boolean, aggressive: Boolean) {}
+    fun onDisconnected(address: String) {}
 }
 
 class Sensors private constructor() {
     val observers = LinkedList<WeakReference<SensorsObserver>>()
-    private val activeDevices = HashSet<String>()
+    private val activeDevices = HashMap<String, GattCallback>()
     private var scanning = false
     private var aggressiveScan = false
 
@@ -109,31 +109,30 @@ class Sensors private constructor() {
             Log.i(TAG, "device $address already active")
             return
         }
-        activeDevices.add(address)
-        device.connectGatt(
-            context, false,
-            GattCallback(stateConnected = {
-                activeDevices.add(address)
-                Log.i(TAG, "$address connected, ${activeDevices.size} active devices")
-                if (activeDevices.size >= 4) {
-                    stopScan()
-                }
-            }, stateDisconnected = { add: String ->
-                Log.i(TAG, "$add, disconnected ${activeDevices.size} active devices")
-                activeDevices.remove(add)
-                if (activeDevices.size < 4) {
-                    startScan(false)
-                }
-                observers.forEach { o -> o.get()?.onDisconnected(add) }
-            }, onValue = { add, value ->
-                observers.forEach { o -> o.get()?.onMeasurement(value) }
-            })
-        )
+        val gattCallback = GattCallback(stateConnected = {
+            Log.i(TAG, "$address connected, ${activeDevices.size} active devices")
+            if (activeDevices.size >= 4) {
+                stopScan()
+            }
+        }, stateDisconnected = { add: String ->
+            Log.i(TAG, "$add, disconnected ${activeDevices.size} active devices")
+            activeDevices.remove(add)
+            observers.forEach { o -> o.get()?.onDisconnected(add) }
+        }, onValue = { add, value ->
+            observers.forEach { o -> o.get()?.onMeasurement(value) }
+        })
+        activeDevices[address] = gattCallback
+        device.connectGatt(context, false, gattCallback)
     }
 
     fun stopScan() {
         bluetoothAdapter.bluetoothLeScanner?.stopScan(scan)
         scanning = false
         notifyScanStatus()
+    }
+
+    fun disconnect() {
+        stopScan()
+        activeDevices.forEach { t, u -> u.disconnect() }
     }
 }
