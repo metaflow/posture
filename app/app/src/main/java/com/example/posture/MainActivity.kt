@@ -158,10 +158,11 @@ class MainActivity : AppCompatActivity(), MediatorObserver {
         val b = StringBuilder()
         sensors.forEach { (t, u) ->
             b.appendln(
-                "${t.substring(0, 2)} (%+.1f, %+.1f, %+.1f)".format(
+                "${t.substring(0, 2)} (%+.1f, %+.1f, %+.1f) %d".format(
                     u.ax,
                     u.ay,
-                    u.az
+                    u.az,
+                    (u.time / 1000) % 60
                 )
             )
         }

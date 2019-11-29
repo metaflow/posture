@@ -83,27 +83,17 @@
         android:id="@+id/rawtext"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:layout_marginLeft="40dp"
+        android:layout_marginLeft="24dp"
         android:layout_marginTop="16dp"
         android:text="sensors"
         app:layout_constraintLeft_toLeftOf="parent"
         app:layout_constraintTop_toBottomOf="@+id/toggleObserveButton" />
 
     <TextView
-        android:id="@+id/decisionText"
-        android:layout_width="wrap_content"
-        android:layout_height="0dp"
-        android:layout_marginLeft="24dp"
-        android:layout_marginBottom="16dp"
-        android:text="sensors"
-        app:layout_constraintBottom_toTopOf="@+id/recordGood"
-        app:layout_constraintLeft_toLeftOf="parent" />
-
-    <TextView
         android:id="@+id/messagesText"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:layout_marginLeft="40dp"
+        android:layout_marginLeft="24dp"
         android:layout_marginTop="16dp"
         android:text="messages"
         app:layout_constraintLeft_toLeftOf="parent"

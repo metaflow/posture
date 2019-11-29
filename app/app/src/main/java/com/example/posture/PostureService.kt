@@ -204,6 +204,7 @@ class PostureService : Service(), MediatorObserver {
                     m.eventID = id
                     repository!!.insertMeasurement(m)
                 }
+                Mediator.getInstance().addStatusMessage("$id ${e.type} with ${queue.size} points")
                 Log.i(TAG, "added new event $id $e with ${queue.size} measurements attached")
             }
         }
