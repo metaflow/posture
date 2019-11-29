@@ -11,30 +11,37 @@ import android.os.Handler
 import android.os.IBinder
 import android.util.Log
 import androidx.core.app.NotificationCompat
-import androidx.lifecycle.ViewModelProvider
-import java.lang.ref.WeakReference
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.GlobalScope
+import kotlinx.coroutines.launch
 import java.time.Instant
+import java.util.*
+import java.util.concurrent.locks.ReentrantLock
+import kotlin.collections.ArrayList
+import kotlin.concurrent.withLock
 import kotlin.random.Random
 
 private val TAG: String = PostureService::class.java.simpleName
 
-interface PostureServiceObserver {
-    fun onNotificationScheduled(nextNotification: Instant?)
-}
 
-class PostureService : Service(), SensorsObserver, MediatorObserver {
-
+class PostureService : Service(), MediatorObserver {
+    private var repository: SensorDataRepository? = null
     private val observeNotificationID = 2
     private val backgroundChannelID = "channel_id_posture_bg"
     private val messagesChannelID = "channel_id_posture_fg"
-    var flipped = false
     var started = false
-    var observers = ArrayList<WeakReference<PostureServiceObserver>>()
-    var nextNotification: Instant? = null
+    var nextObserve: Instant? = null
         set(value) {
             field = value
-            observers.forEach { o -> o.get()?.onNotificationScheduled(value) }
+            Mediator.getInstance().addStatusMessage("next observe notification $value")
         }
+    var nextRecord: Instant? = null
+        set(value) {
+            field = value
+            Mediator.getInstance().addStatusMessage("next record $value")
+        }
+    private val queue: LinkedList<SensorMeasurement> = LinkedList()
+    private var queueLock = ReentrantLock()
 
     companion object {
         @Volatile
@@ -45,19 +52,12 @@ class PostureService : Service(), SensorsObserver, MediatorObserver {
         }
     }
 
-    fun addObserver(o: PostureServiceObserver) {
-        observers.add(WeakReference(o))
-        o.onNotificationScheduled(nextNotification)
-    }
-
     override fun onBind(intent: Intent): IBinder? {
         return null
     }
 
     override fun onCreate() {
         super.onCreate()
-        ViewModelProvider.AndroidViewModelFactory.getInstance(application)
-            .create(SensorsViewModel::class.java)
         INSTANCE = this
     }
 
@@ -65,6 +65,9 @@ class PostureService : Service(), SensorsObserver, MediatorObserver {
         super.onStartCommand(intent, flags, startId)
         Log.i(TAG, "onStartCommand $started $startId $flags")
         if (started) return START_STICKY
+
+        val db = AppDatabase.getDatabase(this)
+        repository = SensorDataRepository(db.sensors(), db.events())
         started = true
         val notificationIntent = Intent(this, MainActivity::class.java)
 
@@ -85,13 +88,14 @@ class PostureService : Service(), SensorsObserver, MediatorObserver {
             .build()
         startForeground(1, notification)
         Sensors.getInstance(this).context = this
-        Sensors.getInstance(this).addObserver(this)
         Mediator.getInstance().addObserver(this)
+        Sensors.getInstance(this).addObserver(Mediator.getInstance())
+        scheduleRecord()
         return START_STICKY
     }
 
     private fun showObserveNotification() {
-        nextNotification = null
+        nextObserve = null
         if (!Mediator.getInstance().observeNotifications) return
         val notificationIntent = Intent(this, MainActivity::class.java)
 
@@ -120,17 +124,27 @@ class PostureService : Service(), SensorsObserver, MediatorObserver {
 
     private fun scheduleObserveNotification() {
         if (!Mediator.getInstance().observeNotifications) {
-            nextNotification = null
+            nextObserve = null
             return
         }
-        val delay = getNotificationDelay()
+        val delay = Random.nextLong(5 * 60_000, 30 * 60_000)
         Log.i(TAG, "next notification in $delay ms")
-        nextNotification = Instant.now().plusMillis(delay)
+        nextObserve = Instant.now().plusMillis(delay)
         Handler().postDelayed({ showObserveNotification() }, delay)
     }
 
-    private fun getNotificationDelay(): Long {
-        return Random.nextLong(5, 30) * 60_000
+    private fun scheduleRecord() {
+        if (nextRecord != null) return
+        val delay = Random.nextLong(2 * 60_000, 10 * 60_000)
+        Log.i(TAG, "next record in $delay ms")
+        nextRecord = Instant.now().plusMillis(delay)
+        Handler().postDelayed({ recordSensors() }, delay)
+    }
+
+    private fun recordSensors() {
+        nextRecord = null
+        Mediator.getInstance().addEvent(PostureEvent(PostureEvent.Type.ARCHIVE.ordinal))
+        scheduleRecord()
     }
 
     override fun onDestroy() {
@@ -162,31 +176,6 @@ class PostureService : Service(), SensorsObserver, MediatorObserver {
         }
     }
 
-    override fun onMeasurement(measurement: SensorMeasurement) {
-        @Suppress("SimplifyBooleanWithConstants")
-        if (measurement.az < 0 != flipped && false) {
-            flipped = measurement.az < 0
-            Log.i(TAG, "flipped $flipped")
-            if (flipped) {
-                val builder = NotificationCompat.Builder(this, backgroundChannelID)
-                    .setSmallIcon(R.drawable.ic_fix_posture)
-                    .setContentTitle("FLIPPED")
-                    .setContentText("sensor is flipped")
-                    .setPriority(NotificationCompat.PRIORITY_DEFAULT)
-                    .setTimeoutAfter(5000)
-                val notification = builder.build()
-
-                val notificationManager: NotificationManager =
-                    getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-                notificationManager.notify(2, notification)
-            } else {
-                val notificationManager: NotificationManager =
-                    getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-                notificationManager.cancel(2)
-            }
-        }
-    }
-
     override fun onUserToggleApp(on: Boolean) {
         super.onUserToggleApp(on)
         if (on) {
@@ -200,6 +189,44 @@ class PostureService : Service(), SensorsObserver, MediatorObserver {
         super.onUserToggleNotifications(value)
         if (value) {
             scheduleObserveNotification()
+        }
+    }
+
+    override fun onPostureEvent(e: PostureEvent) {
+        GlobalScope.launch(Dispatchers.IO) {
+            if (repository != null) {
+                val id = repository!!.insertEvent(e)
+                removeOld()
+                queueLock.lock()
+                val c = ArrayList<SensorMeasurement>(queue)
+                queueLock.unlock()
+                c.forEach { m ->
+                    m.eventID = id
+                    repository!!.insertMeasurement(m)
+                }
+                Log.i(TAG, "added new event $id $e with ${queue.size} measurements attached")
+            }
+        }
+    }
+
+    override fun onMeasurement(measurement: SensorMeasurement) {
+        queueLock.withLock {
+            queue.addLast(measurement)
+            removeOld()
+        }
+    }
+
+    override fun onScanStatus(on: Boolean, aggressive: Boolean) {
+        Mediator.getInstance().addStatusMessage("scanning $on aggressive $aggressive")
+    }
+
+    override fun onDisconnected(address: String) {
+    }
+
+    private fun removeOld() {
+        queueLock.withLock {
+            val t = Instant.now().toEpochMilli() - 10_000
+            while (!queue.isEmpty() && queue.peekFirst()!!.time < t) queue.removeFirst()
         }
     }
 }

@@ -23,10 +23,20 @@ interface SensorsObserver {
 }
 
 class Sensors private constructor() {
-    val observers = LinkedList<WeakReference<SensorsObserver>>()
+    private val observers = LinkedList<WeakReference<SensorsObserver>>()
     private val activeDevices = HashMap<String, GattCallback>()
-    private var scanning = false
+    var scanning = false
+        set(value) {
+            val notify = field != value
+            field = value
+            if (notify) notifyScanStatus()
+        }
     private var aggressiveScan = false
+        set(value) {
+            val notify = field != value
+            field = value
+            if (notify) notifyScanStatus()
+        }
 
     var context: Context? = null
     private lateinit var bluetoothAdapter: BluetoothAdapter
@@ -78,7 +88,6 @@ class Sensors private constructor() {
 
     fun startScan(aggressive: Boolean) {
         Log.i(TAG, "startScan")
-        scanning = false
         bluetoothAdapter.takeIf { it.isEnabled }?.apply {
             val s = bluetoothAdapter.bluetoothLeScanner
             s.stopScan(scan)
@@ -92,9 +101,9 @@ class Sensors private constructor() {
             aggressiveScan = aggressive
             if (aggressive) {
                 Handler().postDelayed({ startScan(false) }, 10_000)
+                Handler().postDelayed({ stopScan() }, 60_000)
             }
         }
-        notifyScanStatus()
     }
 
     private fun notifyScanStatus() {
@@ -102,16 +111,16 @@ class Sensors private constructor() {
     }
 
     private fun connect(device: BluetoothDevice?) {
-        Log.i(TAG, "connecting to $device")
         val address = device?.address
         if (device == null || address == null) return
         if (activeDevices.contains(address)) {
-            Log.i(TAG, "device $address already active")
+            Log.d(TAG, "device $address already active")
             return
         }
+        Log.i(TAG, "connecting to $device")
         val gattCallback = GattCallback(stateConnected = {
             Log.i(TAG, "$address connected, ${activeDevices.size} active devices")
-            if (activeDevices.size >= 4) {
+            if (activeDevices.size >= 3) {
                 stopScan()
             }
         }, stateDisconnected = { add: String ->
@@ -128,7 +137,6 @@ class Sensors private constructor() {
     fun stopScan() {
         bluetoothAdapter.bluetoothLeScanner?.stopScan(scan)
         scanning = false
-        notifyScanStatus()
     }
 
     fun disconnect() {
