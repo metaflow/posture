@@ -28,12 +28,16 @@ class Mediator private constructor() : SensorsObserver {
         }
     }
 
+    val latestMessages = LinkedList<String>()
+    val observations = TreeMap<String, SensorMeasurement>()
     val observers = LinkedList<WeakReference<MediatorObserver>>()
 
     fun addObserver(o: MediatorObserver) {
         observers.push(WeakReference(o))
         o.onUserToggleApp(appEnabled)
         o.onUserToggleNotifications(observeNotifications)
+        latestMessages.forEach { s -> o.onStatusMessage(s) }
+        observations.forEach { (_, u) -> o.onMeasurement(u) }
     }
 
     var appEnabled = true
@@ -54,6 +58,7 @@ class Mediator private constructor() : SensorsObserver {
 
     override fun onMeasurement(measurement: SensorMeasurement) {
         observers.forEach { o -> o.get()?.onMeasurement(measurement) }
+        observations[measurement.sensorId] = measurement
     }
 
     override fun onScanStatus(on: Boolean, aggressive: Boolean) {
@@ -65,6 +70,8 @@ class Mediator private constructor() : SensorsObserver {
     }
 
     fun addStatusMessage(s: String) {
+        latestMessages.push(s)
+        while (latestMessages.size >= 100) latestMessages.removeFirst()
         observers.forEach { o -> o.get()?.onStatusMessage(s) }
     }
 }

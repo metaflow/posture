@@ -15,6 +15,7 @@ import android.widget.TextView
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
+import java.time.Instant
 import java.util.*
 
 private val TAG: String = MainActivity::class.java.simpleName
@@ -158,11 +159,10 @@ class MainActivity : AppCompatActivity(), MediatorObserver {
         val b = StringBuilder()
         sensors.forEach { (t, u) ->
             b.appendln(
-                "${t.substring(0, 2)} (%+.1f, %+.1f, %+.1f) %d".format(
+                "${t.substring(0, 2)} (%+.1f, %+.1f, %+.1f) ${Instant.ofEpochMilli(u.time)}".format(
                     u.ax,
                     u.ay,
-                    u.az,
-                    (u.time / 1000) % 60
+                    u.az
                 )
             )
         }

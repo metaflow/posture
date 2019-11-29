@@ -64,8 +64,11 @@ class PostureService : Service(), MediatorObserver {
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         super.onStartCommand(intent, flags, startId)
         Log.i(TAG, "onStartCommand $started $startId $flags")
-        if (started) return START_STICKY
-
+        if (started) {
+            scheduleRecord()
+            scheduleObserveNotification()
+            return START_STICKY
+        }
         val db = AppDatabase.getDatabase(this)
         repository = SensorDataRepository(db.sensors(), db.events())
         started = true
@@ -91,11 +94,11 @@ class PostureService : Service(), MediatorObserver {
         Mediator.getInstance().addObserver(this)
         Sensors.getInstance(this).addObserver(Mediator.getInstance())
         scheduleRecord()
+        scheduleObserveNotification()
         return START_STICKY
     }
 
     private fun showObserveNotification() {
-        nextObserve = null
         if (!Mediator.getInstance().observeNotifications) return
         val notificationIntent = Intent(this, MainActivity::class.java)
 
@@ -127,6 +130,7 @@ class PostureService : Service(), MediatorObserver {
             nextObserve = null
             return
         }
+        if (nextObserve != null && nextObserve?.isAfter(Instant.now()) == true) return
         val delay = Random.nextLong(5 * 60_000, 30 * 60_000)
         Log.i(TAG, "next notification in $delay ms")
         nextObserve = Instant.now().plusMillis(delay)
@@ -134,7 +138,7 @@ class PostureService : Service(), MediatorObserver {
     }
 
     private fun scheduleRecord() {
-        if (nextRecord != null) return
+        if (nextRecord != null && nextRecord?.isAfter(Instant.now()) == true) return
         val delay = Random.nextLong(2 * 60_000, 10 * 60_000)
         Log.i(TAG, "next record in $delay ms")
         nextRecord = Instant.now().plusMillis(delay)
@@ -142,7 +146,6 @@ class PostureService : Service(), MediatorObserver {
     }
 
     private fun recordSensors() {
-        nextRecord = null
         Mediator.getInstance().addEvent(PostureEvent(PostureEvent.Type.ARCHIVE.ordinal))
         scheduleRecord()
     }
