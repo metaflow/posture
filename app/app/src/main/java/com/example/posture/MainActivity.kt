@@ -120,11 +120,7 @@ class MainActivity : AppCompatActivity(), MediatorObserver {
 
     @Suppress("UNUSED_PARAMETER")
     fun forceScan(view: View) {
-        if (Sensors.getInstance(this).scanning) {
-            Sensors.getInstance(this).stopScan()
-        } else {
-            Sensors.getInstance(this).startScan(true)
-        }
+        Sensors.getInstance(this).connect()
     }
 
     @Suppress("UNUSED_PARAMETER")
@@ -167,10 +163,6 @@ class MainActivity : AppCompatActivity(), MediatorObserver {
             )
         }
         findViewById<TextView>(R.id.rawtext).text = b
-    }
-
-    override fun onScanStatus(on: Boolean, aggressive: Boolean) = runOnUiThread {
-        findViewById<Button>(R.id.scan).text = if (on) "STOP SCANNING" else "SCAN"
     }
 
     override fun onUserToggleApp(on: Boolean) = runOnUiThread {

@@ -67,6 +67,7 @@ class PostureService : Service(), MediatorObserver {
         if (started) {
             scheduleRecord()
             scheduleObserveNotification()
+            if (Mediator.getInstance().appEnabled) Sensors.getInstance(this).connect()
             return START_STICKY
         }
         val db = AppDatabase.getDatabase(this)
@@ -182,7 +183,7 @@ class PostureService : Service(), MediatorObserver {
     override fun onUserToggleApp(on: Boolean) {
         super.onUserToggleApp(on)
         if (on) {
-            Sensors.getInstance(this).startScan(true)
+            Sensors.getInstance(this).connect()
         } else {
             Sensors.getInstance(this).disconnect()
         }
@@ -218,10 +219,6 @@ class PostureService : Service(), MediatorObserver {
             queue.addLast(measurement)
             removeOld()
         }
-    }
-
-    override fun onScanStatus(on: Boolean, aggressive: Boolean) {
-        Mediator.getInstance().addStatusMessage("scanning $on aggressive $aggressive")
     }
 
     override fun onDisconnected(address: String) {

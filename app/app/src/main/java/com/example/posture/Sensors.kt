@@ -23,6 +23,7 @@ interface SensorsObserver {
 }
 
 class Sensors private constructor() {
+    private var disconnected = false
     private val observers = LinkedList<WeakReference<SensorsObserver>>()
     private val activeDevices = HashMap<String, GattCallback>()
     var scanning = false
@@ -86,12 +87,20 @@ class Sensors private constructor() {
         }
     }
 
-    fun startScan(aggressive: Boolean) {
+    fun connect() {
+        disconnected = false
+        startScan(true)
+    }
+
+    private fun startScan(aggressive: Boolean) {
+        if (disconnected) return
         Log.i(TAG, "startScan")
         bluetoothAdapter.takeIf { it.isEnabled }?.apply {
             val s = bluetoothAdapter.bluetoothLeScanner
             s.stopScan(scan)
             Log.i(TAG, "BLE is enabled, starting scan $s aggressive=$aggressive")
+            Mediator.getInstance()
+                .addStatusMessage("scanning ${if (aggressive) "aggresive" else ""}")
             val scanSettings = ScanSettings.Builder()
             scanSettings.setScanMode(if (aggressive) ScanSettings.SCAN_MODE_LOW_LATENCY else ScanSettings.SCAN_MODE_LOW_POWER)
             scanSettings.setMatchMode(ScanSettings.MATCH_MODE_STICKY)
@@ -100,7 +109,7 @@ class Sensors private constructor() {
             scanning = true
             aggressiveScan = aggressive
             if (aggressive) {
-                Handler().postDelayed({ startScan(false) }, 10_000)
+                Handler().postDelayed({ startScan(false) }, 20_000)
                 Handler().postDelayed({ stopScan() }, 60_000)
             }
         }
@@ -120,27 +129,31 @@ class Sensors private constructor() {
         Log.i(TAG, "connecting to $device")
         val gattCallback = GattCallback(stateConnected = {
             Log.i(TAG, "$address connected, ${activeDevices.size} active devices")
-            if (activeDevices.size >= 3) {
-                stopScan()
-            }
         }, stateDisconnected = { add: String ->
             Log.i(TAG, "$add, disconnected ${activeDevices.size} active devices")
             activeDevices.remove(add)
+            if (activeDevices.size < 3) {
+                Handler().postDelayed({ startScan(true) }, 60_000)
+            }
             observers.forEach { o -> o.get()?.onDisconnected(add) }
-        }, onValue = { add, value ->
+        }, onValue = { _, value ->
             observers.forEach { o -> o.get()?.onMeasurement(value) }
         })
         activeDevices[address] = gattCallback
         device.connectGatt(context, false, gattCallback)
     }
 
-    fun stopScan() {
+    private fun stopScan() {
+        if (!scanning) return
+        if (activeDevices.size < 3) Handler().postDelayed({ startScan(true) }, 5 * 60_000)
+        Mediator.getInstance().addStatusMessage("not scanning")
         bluetoothAdapter.bluetoothLeScanner?.stopScan(scan)
         scanning = false
     }
 
     fun disconnect() {
+        disconnected = true
         stopScan()
-        activeDevices.forEach { t, u -> u.disconnect() }
+        activeDevices.forEach { (_, u) -> u.disconnect() }
     }
 }
