@@ -1,13 +1,16 @@
 package com.example.posture
 
 import java.lang.ref.WeakReference
+import java.time.Instant
 import java.util.*
+
+private data class StatusMessage(val time: Instant, val message: String)
 
 interface MediatorObserver : SensorsObserver {
     fun onUserToggleApp(on: Boolean) {}
     fun onUserToggleNotifications(value: Boolean) {}
     fun onPostureEvent(e: PostureEvent) {}
-    fun onStatusMessage(s: String) {}
+    fun onStatusMessage(s: String, t: Instant) {}
 }
 
 class Mediator private constructor() : SensorsObserver {
@@ -28,15 +31,15 @@ class Mediator private constructor() : SensorsObserver {
         }
     }
 
-    val latestMessages = LinkedList<String>()
-    val observations = TreeMap<String, SensorMeasurement>()
-    val observers = LinkedList<WeakReference<MediatorObserver>>()
+    private val latestMessages = LinkedList<StatusMessage>()
+    private val observations = TreeMap<String, SensorMeasurement>()
+    private val observers = LinkedList<WeakReference<MediatorObserver>>()
 
     fun addObserver(o: MediatorObserver) {
         observers.push(WeakReference(o))
         o.onUserToggleApp(appEnabled)
         o.onUserToggleNotifications(observeNotifications)
-        latestMessages.forEach { s -> o.onStatusMessage(s) }
+        latestMessages.forEach { s -> o.onStatusMessage(s.message, s.time) }
         observations.forEach { (_, u) -> o.onMeasurement(u) }
     }
 
@@ -70,8 +73,9 @@ class Mediator private constructor() : SensorsObserver {
     }
 
     fun addStatusMessage(s: String) {
-        latestMessages.push(s)
+        val now = Instant.now()
+        latestMessages.addLast(StatusMessage(now, s))
         while (latestMessages.size >= 100) latestMessages.removeFirst()
-        observers.forEach { o -> o.get()?.onStatusMessage(s) }
+        observers.forEach { o -> o.get()?.onStatusMessage(s, now) }
     }
 }

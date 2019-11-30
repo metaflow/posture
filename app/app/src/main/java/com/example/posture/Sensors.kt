@@ -110,7 +110,7 @@ class Sensors private constructor() {
             aggressiveScan = aggressive
             if (aggressive) {
                 Handler().postDelayed({ startScan(false) }, 20_000)
-                Handler().postDelayed({ stopScan() }, 60_000)
+                Handler().postDelayed({ stopScan() }, 80_000)
             }
         }
     }
@@ -130,6 +130,8 @@ class Sensors private constructor() {
         val gattCallback = GattCallback(stateConnected = {
             Log.i(TAG, "$address connected, ${activeDevices.size} active devices")
         }, stateDisconnected = { add: String ->
+
+            Mediator.getInstance().addStatusMessage("$address disconnected")
             Log.i(TAG, "$add, disconnected ${activeDevices.size} active devices")
             activeDevices.remove(add)
             if (activeDevices.size < 3) {

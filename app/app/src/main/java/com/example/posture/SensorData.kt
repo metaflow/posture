@@ -43,18 +43,23 @@ operator fun Q.times(b: Q): Q {
 data class SensorMeasurement(
     val sensorId: String,
     val time: Long,
-    var ax: Double,
-    var ay: Double,
-    var az: Double
+    val x: Long,
+    val y: Long,
+    val z: Long
 ) {
     @PrimaryKey(autoGenerate = true)
     var id: Long = 0
     var eventID: Long = 0
+    var ax: Double = 0.0
+    var ay: Double = 0.0
+    var az: Double = 0.0
 
     fun normalize() {
-        val a = Q(0.0, ax, ay, az).normalize()
-        ax = a.x
-        ay = a.y
-        az = a.z
+        if (x * x + y * y + z * z > 0) {
+            val a = Q(0.0, x.toDouble(), y.toDouble(), z.toDouble()).normalize()
+            ax = a.x
+            ay = a.y
+            az = a.z
+        }
     }
 }

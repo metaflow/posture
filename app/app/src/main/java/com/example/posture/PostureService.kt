@@ -33,12 +33,13 @@ class PostureService : Service(), MediatorObserver {
     var nextObserve: Instant? = null
         set(value) {
             field = value
-            Mediator.getInstance().addStatusMessage("next observe notification $value")
+            Mediator.getInstance()
+                .addStatusMessage("next observe notification ${value?.isoFormat()}")
         }
     var nextRecord: Instant? = null
         set(value) {
             field = value
-            Mediator.getInstance().addStatusMessage("next record $value")
+            Mediator.getInstance().addStatusMessage("next record ${value?.isoFormat()}")
         }
     private val queue: LinkedList<SensorMeasurement> = LinkedList()
     private var queueLock = ReentrantLock()

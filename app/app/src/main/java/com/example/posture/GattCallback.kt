@@ -114,22 +114,30 @@ class GattCallback(
             "$address: ${ch?.value?.map { b -> String.format("%02X", b) }?.joinToString { x -> x }}"
         )
         val get = { p: Int ->
-            Double
+            Long
             when {
                 ch?.value == null -> 0
                 p + 1 > ch.value?.size!! -> 0
                 else -> ch.value?.get(p)!! * 256 + ch.value?.get(p + 1)!!
             }
         }
-        val data = SensorMeasurement(
-            address,
-            Instant.now().toEpochMilli(),
-            get(0).toDouble(),
-            get(2).toDouble(),
-            get(4).toDouble()
-        )
-        data.normalize()
-        onValue(address, data)
+        val x = get(0).toLong()
+        val y = get(2).toLong()
+        val z = get(4).toLong()
+        if (x * x + y * y + z * z > 0) {
+            val data = SensorMeasurement(
+                address,
+                Instant.now().toEpochMilli(),
+                x,
+                y,
+                z
+            )
+            data.normalize()
+            onValue(address, data)
+        } else {
+            Log.i(TAG, "invalid sensor data, trying to reconnect")
+            disconnect()
+        }
     }
 
     fun disconnect() {

@@ -143,11 +143,10 @@ class MainActivity : AppCompatActivity(), MediatorObserver {
         super.onActivityResult(requestCode, resultCode, data)
     }
 
-    override fun onStatusMessage(s: String) = runOnUiThread {
-        messages.push(s)
+    override fun onStatusMessage(s: String, t: Instant) = runOnUiThread {
+        messages.addLast("${t.isoFormat()} $s")
         while (messages.size > 10) messages.removeFirst()
-        findViewById<TextView>(R.id.messagesText).text =
-            messages.joinToString("\n")
+        findViewById<TextView>(R.id.messagesText).text = messages.joinToString("\n")
     }
 
     override fun onMeasurement(measurement: SensorMeasurement) = runOnUiThread {
@@ -155,7 +154,10 @@ class MainActivity : AppCompatActivity(), MediatorObserver {
         val b = StringBuilder()
         sensors.forEach { (t, u) ->
             b.appendln(
-                "${t.substring(0, 2)} (%+.1f, %+.1f, %+.1f) ${Instant.ofEpochMilli(u.time)}".format(
+                "${t.substring(
+                    0,
+                    2
+                )} (%+.1f, %+.1f, %+.1f) ${Instant.ofEpochMilli(u.time).isoFormat()}".format(
                     u.ax,
                     u.ay,
                     u.az
