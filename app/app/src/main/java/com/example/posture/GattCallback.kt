@@ -60,12 +60,6 @@ class GattCallback(
                             "characteristic: ${ch.uuid}"
                         )
                         if (ch.uuid == characteristicUUID) {
-                            ch.descriptors.forEach { d ->
-                                Log.i(
-                                    TAG,
-                                    "descriptor $d ${d.uuid} ${d.value}"
-                                )
-                            }
                             characteristic = ch
                             Log.i(
                                 TAG,
@@ -86,6 +80,11 @@ class GattCallback(
                                     "descriptor $d ${d.uuid} ${d.value}"
                                 )
                             }
+                        }
+                        if (ch.uuid == notificationsCharacteristicUUID) {
+                            Log.i(TAG, "notification characteristic ${ch.value}")
+                            ch.value = byteArrayOf(0x0, 0x7, 0xD, 0x0)
+                            gatt.writeCharacteristic(ch)
                         }
                     }
                 }

@@ -9,6 +9,7 @@ import android.bluetooth.le.ScanResult
 import android.bluetooth.le.ScanSettings
 import android.content.Context
 import android.os.Handler
+import android.os.Looper
 import android.os.ParcelUuid
 import android.util.Log
 import java.lang.ref.WeakReference
@@ -109,8 +110,8 @@ class Sensors private constructor() {
             scanning = true
             aggressiveScan = aggressive
             if (aggressive) {
-                Handler().postDelayed({ startScan(false) }, 20_000)
-                Handler().postDelayed({ stopScan() }, 80_000)
+                Handler(Looper.getMainLooper()).postDelayed({ startScan(false) }, 20_000)
+                Handler(Looper.getMainLooper()).postDelayed({ stopScan() }, 80_000)
             }
         }
     }
@@ -130,12 +131,12 @@ class Sensors private constructor() {
         val gattCallback = GattCallback(stateConnected = {
             Log.i(TAG, "$address connected, ${activeDevices.size} active devices")
         }, stateDisconnected = { add: String ->
-
-            Mediator.getInstance().addStatusMessage("$address disconnected")
-            Log.i(TAG, "$add, disconnected ${activeDevices.size} active devices")
             activeDevices.remove(add)
+            Log.i(TAG, "$add, disconnected ${activeDevices.size} active devices")
+            Mediator.getInstance()
+                .addStatusMessage("$address disconnected, ${activeDevices.size} active sensors")
             if (activeDevices.size < 3) {
-                Handler().postDelayed({ startScan(true) }, 60_000)
+                Handler(Looper.getMainLooper()).postDelayed({ startScan(true) }, 60_000)
             }
             observers.forEach { o -> o.get()?.onDisconnected(add) }
         }, onValue = { _, value ->
@@ -147,7 +148,10 @@ class Sensors private constructor() {
 
     private fun stopScan() {
         if (!scanning) return
-        if (activeDevices.size < 3) Handler().postDelayed({ startScan(true) }, 5 * 60_000)
+        if (activeDevices.size < 3) Handler(Looper.getMainLooper()).postDelayed(
+            { startScan(true) },
+            5 * 60_000
+        )
         Mediator.getInstance().addStatusMessage("not scanning")
         bluetoothAdapter.bluetoothLeScanner?.stopScan(scan)
         scanning = false

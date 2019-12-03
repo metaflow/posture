@@ -22,6 +22,7 @@ private val TAG: String = MainActivity::class.java.simpleName
 
 val serviceUUID = UUID.fromString("6a800001-b5a3-f393-e0a9-e50e24dcca9e")!!
 val characteristicUUID = UUID.fromString("6a806050-b5a3-f393-e0a9-e50e24dcca9e")!!
+val notificationsCharacteristicUUID = UUID.fromString("6a80ff0c-b5a3-f393-e0a9-e50e24dcca9e")!!
 val enableNotificationDescriptorUUID = UUID.fromString("00002902-0000-1000-8000-00805f9b34fb")!!
 
 class MainActivity : AppCompatActivity(), MediatorObserver {
